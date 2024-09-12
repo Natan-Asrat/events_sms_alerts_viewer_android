@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Outlet Locations Map</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        #controls {
+            padding: 10px;
+            background-color: #f9f9f9;
+            display: flex;
+            justify-content: space-between;
+            z-index: 1000;
+        }
+        #map {
+            flex-grow: 1;
+        }
+        #loading {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #333;
+        }
+        .outlet-code-label {
+            font-size: 12px;
+            background-color: white;
+            padding: 2px 4px;
+            border: 1px solid #000;
+        }
+    </style>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <!-- xlsx library -->
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<div id="controls">
+    <button id="locateBtn">Locate Me</button>
+</div>
+<div id="loading">Loading...</div>
+<div id="map"></div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+    // Initialize the map
+    var map = L.map('map').setView([8.93, 38.66], 13);
+
+    // Add OpenStreetMap tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // Custom user location icon
+    var userIcon = L.icon({
+        iconUrl: 'https://cdn-icons-png.flaticon.com/512/149/149071.png',
+        iconSize: [30, 30],
+        iconAnchor: [15, 30],
+        popupAnchor: [0, -30]
+    });
+
+    // Function to get URL parameters
+    function getUrlParams() {
+        const params = new URLSearchParams(window.location.search);
+        return {
+            lat: parseFloat(params.get('lat')) || 8.93,  // Default lat
+            lng: parseFloat(params.get('lng')) || 38.66  // Default lng
+        };
+    }
+    function getCombinedCoords() {
+        const params = new URLSearchParams(window.location.search);
+        const lat = parseFloat(params.get('lat')) || 8.93;  // Default lat
+        const lng = parseFloat(params.get('lng')) || 38.66;
+        const sound = getDetectedSound();// Default lng
+        return lat + ',' + lng + '\', \'' + sound;
+    }
+    function getDetectedSound(){
+        const params = new URLSearchParams(window.location.search);
+
+        return 'Detected ' + (params.get('sound') || 'Sound');
+    }
+
+    // Get passed latitude and longitude from URL
+    var coords = getUrlParams();
+
+    // Add marker based on passed coordinates
+    var button = '<button onclick="Android.direction(\'' + getCombinedCoords() + '\')">Directions</button>';
+
+    var urlMarker = L.marker([coords.lat, coords.lng])
+        .addTo(map)
+        .bindPopup('<b>' + getDetectedSound() + ' Location</b><br>' + button)
+        .openPopup();
+
+    // Show loading spinner
+    function showLoading(show) {
+        document.getElementById('loading').style.display = show ? 'block' : 'none';
+    }
+
+    // Function to fit bounds based on the marker(s)
+    function fitMapToBounds(markersArray) {
+        if (markersArray.length > 0) {
+            var bounds = L.latLngBounds(markersArray.map(marker => marker.getLatLng()));
+            map.fitBounds(bounds, { padding: [50, 50] });
+        }
+    }
+
+    // Locate user function with handling for denied permissions
+    function locateUser() {
+        if (navigator.geolocation) {
+            showLoading(true);
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    var userCoords = [position.coords.latitude, position.coords.longitude];
+                    var userMarker = L.marker(userCoords, { icon: userIcon })
+                        .addTo(map)
+
+                    // Fit map to both the passed marker and user's location
+                    fitMapToBounds([urlMarker, userMarker]);
+                    showLoading(false);
+                },
+                function(error) {
+                    // If user denies permission or an error occurs, only show the passed marker
+                    switch (error.code) {
+                        case error.PERMISSION_DENIED:
+                            alert("Location access denied. Showing only the passed marker.");
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            alert("Location information is unavailable.");
+                            break;
+                        case error.TIMEOUT:
+                            alert("The request to get user location timed out.");
+                            break;
+                        default:
+                            alert("An unknown error occurred.");
+                            break;
+                    }
+                    // Fit map to the passed marker only
+                    fitMapToBounds([urlMarker]);
+                    showLoading(false);
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        } else {
+            alert("Geolocation is not supported by this browser.");
+            fitMapToBounds([urlMarker]);
+        }
+    }
+
+    // Handle Locate Me button click
+    document.getElementById('locateBtn').addEventListener('click', locateUser);
+
+    // On page load, try to locate the user, otherwise just show the passed marker
+    locateUser();
+     Android.finishedLoading();
+});
+
+
+
+
+
+</script>
+</body>
+</html>
